@@ -104,7 +104,9 @@ final class SelfTest {
         pin.onClose = { [weak self] _ in self?.pinClosed = true }
         pin.start()
         let startFrame = pin.panel.frame
-        await sleep(1.0)
+        // 最初の映像が届いて飛び込みのアニメーション（0.4 秒）が終わるまで待つ
+        for _ in 0..<30 where !pin.hasAppeared { await sleep(0.1) }
+        await sleep(0.7)
         record("パネルは元のウィンドウの場所から現れる", abs(startFrame.minX - source.frame.minX) < 1
                    && abs(startFrame.width - source.frame.width) < 1, "\(startFrame) / 元 \(source.frame)")
         let visible = pin.panel.screen!.visibleFrame
@@ -244,6 +246,8 @@ final class SelfTest {
         let scroll = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2,
                              wheel1: 0, wheel2: Int32(pin.mirror.bounds.width * 0.5), wheel3: 0)!
         scroll.location = CGPoint(x: pin.panel.frame.midX, y: NSScreen.screens[0].frame.height - pin.panel.frame.midY)
+        // その瞬間に押されている修飾キーが乗らないようにする（⌥ なら不透明度、⌘ ならパネルの拡大縮小になってしまう）
+        scroll.flags = []
         if let event = NSEvent(cgEvent: scroll) { pin.mirror.scrollWheel(with: event) }
         await sleep(0.1)
         let moved = pin.zoom ?? .zero
@@ -536,9 +540,17 @@ final class SelfTest {
         await snapshot("7-minimized")
         pin.openSource()
         await sleep(2.0)
-        record("元に戻らなかったら、アクセシビリティの許可を案内する", pin.mirror.notice == .minimizedNeedsAccessibility,
-               "notice \(String(describing: pin.mirror.notice))")
-        if let button = findHintButton(title: L("許可する…")) {
+        if AXIsProcessTrusted() {
+            // 許可があれば確実に戻せるので、許可の案内は出さない
+            record("許可があるときは、許可の案内を出さない", pin.mirror.notice == .minimized,
+                   "notice \(String(describing: pin.mirror.notice))")
+        } else {
+            record("元に戻らなかったら、アクセシビリティの許可を案内する", pin.mirror.notice == .minimizedNeedsAccessibility,
+                   "notice \(String(describing: pin.mirror.notice))")
+        }
+        if AXIsProcessTrusted() {
+            // 許可があるときは「許可する…」は出ない
+        } else if let button = findHintButton(title: L("許可する…")) {
             let point = pin.mirror.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), from: button)
             record("案内から「許可する…」を押せる", !button.isHiddenOrHasHiddenAncestor
                        && pin.mirror.hitTest(pin.mirror.convert(point, to: pin.mirror.superview)) === button
@@ -610,6 +622,7 @@ final class SelfTest {
         // ボタンの上（本物のマウスの位置）→ パネルの中ほど の順に動きを送り、そのたびに画面のポインタを確かめる
         var onButton: NSPoint?
         var onBody: NSPoint?
+        let mouseAtStart = NSEvent.mouseLocation
         let body = pin.panel.convertPoint(toScreen: mirror.convert(NSPoint(x: mirror.bounds.midX, y: mirror.bounds.midY * 0.8), to: nil))
         for _ in 0..<3 {
             mirror.mouseMoved(with: mouseEvent(.mouseMoved, at: NSEvent.mouseLocation, window: pin.panel))
@@ -624,9 +637,10 @@ final class SelfTest {
         let state = "ignores=\(pin.panel.ignoresMouseEvents) alpha=\(pin.panel.alphaValue) hidden=\(pin.isHiddenForSource) "
             + "mouseInside=\(pin.panel.frame.contains(NSEvent.mouseLocation)) active=\(NSApp.isActive)"
         let passed = onButton == NSCursor.pointingHand.hotSpot && onBody == NSCursor.arrow.hotSpot
-        // テスト中に本物のマウスがパネルの外へ動くと、画面のポインタはその下のアプリのものになるので確かめられない
-        if !passed, !pin.panel.frame.contains(NSEvent.mouseLocation) {
-            skipped.append(("背面にいてもボタンの上でポインタが指の形になる", "テスト中に本物のマウスがパネルの外へ動いた"))
+        // テスト中に本物のマウスが動くと、画面のポインタはその位置のものに上書きされるので確かめられない
+        let mouseMoved = hypot(NSEvent.mouseLocation.x - mouseAtStart.x, NSEvent.mouseLocation.y - mouseAtStart.y) > 1
+        if !passed, mouseMoved || !pin.panel.frame.contains(NSEvent.mouseLocation) {
+            skipped.append(("背面にいてもボタンの上でポインタが指の形になる", "テスト中に本物のマウスが動いた"))
             return
         }
         record("背面にいてもボタンの上でポインタが指の形になる（画面のポインタで確認）",
@@ -648,12 +662,16 @@ final class SelfTest {
     private func testSourceClosed() async {
         // 実際のアプリと同じように、閉じたウィンドウを破棄する
         let id = CGWindowID(source.windowNumber)
+        let pid = ProcessInfo.processInfo.processIdentifier
         source.close()
         source = nil
         // デスクトップ切り替え中の誤判定を避けるため、約 1.2 秒続いてから外す
-        await sleep(2.0)
-        record("元のウィンドウを閉じると固定が外れる", pinClosed,
-               "presence \(SourceWindow.presence(of: id, processID: ProcessInfo.processInfo.processIdentifier))")
+        var history: [String] = []
+        for _ in 0..<10 where !pinClosed {
+            await sleep(0.25)
+            history.append("\(SourceWindow.presence(of: id, processID: pid))".replacingOccurrences(of: "SideWindow.SourceWindow.Presence.", with: ""))
+        }
+        record("元のウィンドウを閉じると固定が外れる", pinClosed, history.joined(separator: " → "))
     }
 
     // MARK: - 操作の再現

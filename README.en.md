@@ -54,6 +54,7 @@ Hover over the panel and click 🔍, then drag over an area. The panel keeps its
 ## How it works and limitations
 
 - macOS has no public API for keeping another app’s window on top, so SideWindow shows a live capture made with ScreenCaptureKit. You can’t scroll or type in the panel itself — use the original window (double-click the panel to jump to it).
+- Some apps stop drawing while their window is hidden or on another desktop (browsers, video players, Electron apps, and so on), and the panel stops updating with them. macOS itself keeps capturing hidden windows, so this is the app saving power. Bring the original window to the front (double-click the panel) and it updates again.
 - Windows are chosen with the system window picker, so no Screen Recording permission is needed. While a window is pinned, macOS shows its screen-sharing indicator in the menu bar and on the original window.
 - macOS doesn’t draw minimized windows, so they can’t be shown.
 - Browsers may stop drawing video when its window is completely hidden. For video, Picture in Picture works better.

@@ -173,9 +173,13 @@ enum SourceWindow {
         return value as? Bool
     }
 
-    /// アクセシビリティの許可を求める
+    /// アクセシビリティの許可を求める。確認のダイアログは最初の 1 回しか出ないので、
+    /// まだ許可されていなければシステム設定の該当ページも開く
     static func requestAccessibility() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        AXIsProcessTrustedWithOptions(options)
+        guard !AXIsProcessTrustedWithOptions(options) else { return }
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
     }
 }
