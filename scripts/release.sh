@@ -42,3 +42,6 @@ gh release create "$TAG" "$ZIP" \
   --title "$APP_NAME $VERSION" \
   --notes-file scripts/release-notes.md \
   --generate-notes
+
+echo "▸ Homebrew の tap を更新"
+./scripts/update-tap.sh

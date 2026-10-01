@@ -4,11 +4,28 @@
 
 <p align="center">参照したいウィンドウを、いつも手前に。</p>
 
+<p align="center">
+  <a href="https://github.com/Izu-TABI/SideWindow/releases/latest"><img src="https://img.shields.io/github/v/release/Izu-TABI/SideWindow" alt="最新のリリース"></a>
+  <img src="https://img.shields.io/badge/macOS-15.2%2B-blue" alt="macOS 15.2 以降">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT ライセンス"></a>
+  <a href="https://github.com/Izu-TABI/SideWindow/releases"><img src="https://img.shields.io/github/downloads/Izu-TABI/SideWindow/total" alt="ダウンロード数"></a>
+</p>
+
 <p align="center"><a href="README.en.md">English</a> | 日本語</p>
 
-![奥にある資料のウィンドウを右上のパネルに映しながら、手前でレポートを書いているところ](docs/images/hero.png)
+<p align="center"><img src="docs/images/demo.gif" width="760" alt="資料のウィンドウを選んで固定し、🔍 で拡大、スクロールで移動、⤢ で全体に戻す様子"></p>
 
-レポートを書きながら資料を見る、会議の映像を横に置いておく、といった使い方のための macOS メニューバーアプリです。選んだウィンドウの映像を、常に最前面に浮かぶ小さなパネルに映します。元のウィンドウがほかのウィンドウの後ろに隠れていても、パネルにはずっと映り続けます。
+Mac で、選んだウィンドウを常に最前面（いつも手前）に表示するメニューバーアプリです。Windows の PowerToys にある「Always On Top」のようなことを、Mac のどのアプリのウィンドウでもできます。レポートを書きながら資料を見る、会議の映像を横に置いておく、といった使い方に向いています。元のウィンドウがほかのウィンドウの後ろに隠れていても、パネルにはずっと映り続けます。
+
+## 特長
+
+- **許可が要らない**：「画面収録」も「アクセシビリティ」も許可せずに使えます（ウィンドウはシステムのピッカーで選ぶため）。
+- **見たいところを拡大**：範囲を選んで拡大し、スクロールで位置を動かせます。
+- **邪魔にならない**：元のウィンドウを手前で見ているあいだは自動で隠れます。半透明やクリック透過にもできます。
+- **通信しない**：ネットワークには一切接続しません。データを集めたり送ったりもしません。
+- **無料・オープンソース**：MIT ライセンス。日本語と英語に対応しています。
+
+![奥にある資料のウィンドウを右上のパネルに映しながら、手前でレポートを書いているところ](docs/images/hero.png)
 
 ## ダウンロード
 
@@ -17,6 +34,12 @@
 1. zip を開き、`SideWindow.app` を「アプリケーション」フォルダに移動します。
 2. `SideWindow.app` を開きます。Apple の公証を受けていないため、初回は「開いていません」という警告が出るので「完了」を押します。
 3. 「システム設定」→「プライバシーとセキュリティ」を開き、下の方にある SideWindow の「このまま開く」を押します。もう一度確認が出たら「このまま開く」を押します。
+
+ターミナルを使う場合は、Homebrew でも入れられます（初回の「このまま開く」は同じく必要です）。
+
+```bash
+brew install --cask izu-tabi/tap/sidewindow
+```
 
 使い方の案内が開いたら準備完了です。表示は Mac の言語設定に合わせて日本語か英語になります（日本語が英語より上にあれば日本語）。過去のバージョンは [Releases](https://github.com/Izu-TABI/SideWindow/releases) にあります。
 
@@ -107,11 +130,11 @@
 ./scripts/screenshots.sh
 ```
 
-架空の資料とレポートのウィンドウを並べて実際に固定し、SideWindow 自身のウィンドウだけを撮って合成します（日本語版と英語版）。画面全体は撮らないので、ほかのアプリや個人の情報は写りません。
+架空の資料とレポートのウィンドウを並べて実際に固定し、SideWindow 自身のウィンドウだけを撮って合成します（日本語版と英語版の画像・動くデモの GIF・ソーシャルプレビュー）。画面全体は撮らないので、ほかのアプリや個人の情報は写りません。
 
 ### リリースを出す
 
-`Resources/Info.plist` の `CFBundleShortVersionString` を上げてコミット・push してから実行します。Apple シリコンと Intel の両方で動く版を作り、`SideWindow.zip` を添付した `v<バージョン>` のリリースを GitHub に公開します。
+`Resources/Info.plist` の `CFBundleShortVersionString` を上げてコミット・push してから実行します。Apple シリコンと Intel の両方で動く版を作り、`SideWindow.zip` を添付した `v<バージョン>` のリリースを GitHub に公開します。最後に Homebrew の tap（[Izu-TABI/homebrew-tap](https://github.com/Izu-TABI/homebrew-tap)）も新しいバージョンに更新します。
 
 ```bash
 ./scripts/release.sh

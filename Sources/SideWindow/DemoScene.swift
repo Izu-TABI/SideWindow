@@ -15,6 +15,8 @@ private func t(_ japanese: String, _ english: String) -> String {
 final class DemoScene {
     private let output: URL
     private var reference: NSWindow!
+    /// 固定する前に撮った資料のウィンドウ（固定すると、元のウィンドウに画面共有中の印が付くため）
+    private var referenceBeforePin: CGImage?
     private var report: NSWindow!
     private var slide: SlideView!
     private var pin: PinController!
@@ -47,8 +49,14 @@ final class DemoScene {
         await sleep(1.0)
 
         do {
+            referenceBeforePin = try await capture(reference)
             try await pinReference()
             try await makeHero()
+            if Localization.usesJapanese {
+                // ソーシャルプレビューは日英のキャッチコピーを両方入れた 1 枚だけ作る
+                try await makeSocialPreview()
+            }
+            try await makeAnimation()
             try await makeZoomSteps()
             print("✓ \(output.path)")
             exit(0)
@@ -197,7 +205,8 @@ final class DemoScene {
         }
     }
 
-    private func draw(size: NSSize, _ body: (NSRect) -> Void) -> NSBitmapImageRep {
+    private func draw(size: NSSize, pixelScale: CGFloat? = nil, _ body: (NSRect) -> Void) -> NSBitmapImageRep {
+        let scale = pixelScale ?? self.scale
         let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * scale), pixelsHigh: Int(size.height * scale),
                                    bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
                                    colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
@@ -390,6 +399,269 @@ private final class SlideView: NSView {
         (string as NSString).draw(at: point, withAttributes: [
             .font: NSFont.systemFont(ofSize: size, weight: weight),
             .foregroundColor: color,
+        ])
+    }
+}
+
+
+// MARK: - 動くデモ（GIF）とソーシャルプレビュー
+
+extension DemoScene {
+    /// パネルを撮った 1 コマ（frame は合成する範囲の中の位置）
+    private struct PanelShot {
+        let image: CGImage
+        let frame: NSRect
+    }
+
+    private func panelShot() async throws -> PanelShot {
+        PanelShot(image: try await capture(pin.panel), frame: pin.panel.frame.offsetBy(dx: -region.minX, dy: -region.minY))
+    }
+
+    /// 操作バーのボタンの中心（合成する範囲の中の位置）
+    private func buttonCenter(tip: String) -> NSPoint? {
+        func search(_ view: NSView) -> BarButton? {
+            if let button = view as? BarButton, button.toolTip == tip { return button }
+            for sub in view.subviews { if let found = search(sub) { return found } }
+            return nil
+        }
+        guard let button = search(pin.mirror), let window = button.window else { return nil }
+        let point = window.convertPoint(toScreen: button.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), to: nil))
+        return NSPoint(x: point.x - region.minX, y: point.y - region.minY)
+    }
+
+    /// 選ぶ → 飛んできて収まる → 🔍 で拡大 → スクロール → 全体に戻る、を 1 コマずつ撮ってつなぐ
+    func makeAnimation() async throws {
+        let mirror = pin.mirror
+        let referenceImage = try await capture(reference)
+        let referenceUnpinned = referenceBeforePin ?? referenceImage
+        let reportImage = try await capture(report)
+        let referenceFrame = reference.frame.offsetBy(dx: -region.minX, dy: -region.minY)
+        let reportFrame = report.frame.offsetBy(dx: -region.minX, dy: -region.minY)
+
+        // パネルの場面を順に撮る
+        mirror.showChrome(for: 0.01)
+        await sleep(0.5)
+        let plain = try await panelShot()
+        mirror.showChrome(for: 60)
+        await sleep(0.4)
+        let withChrome = try await panelShot()
+        guard let zoomButton = buttonCenter(tip: L("範囲を選んで拡大")) else {
+            throw NSError(domain: "Demo", code: 3, userInfo: [NSLocalizedDescriptionKey: "拡大ボタンが見つからない"])
+        }
+
+        let chart = slide.convert(slide.chartRect, to: nil)
+        let windowSize = reference.frame.size
+        let selection = NSRect(x: chart.minX / windowSize.width * mirror.bounds.width,
+                               y: chart.minY / windowSize.height * mirror.bounds.height,
+                               width: chart.width / windowSize.width * mirror.bounds.width,
+                               height: chart.height / windowSize.height * mirror.bounds.height)
+        var selecting: [(PanelShot, NSPoint)] = []
+        for step in 0...6 {
+            let t = CGFloat(step) / 6
+            let rect = NSRect(x: selection.minX, y: selection.maxY - selection.height * t,
+                              width: selection.width * t, height: selection.height * t)
+            mirror.previewSelection(rect)
+            await sleep(0.15)
+            let shot = try await panelShot()
+            selecting.append((shot, NSPoint(x: shot.frame.minX + rect.maxX, y: shot.frame.minY + rect.minY)))
+        }
+        mirror.cancelSelecting()
+
+        let source = CGRect(x: chart.minX, y: windowSize.height - chart.maxY, width: chart.width, height: chart.height)
+        pin.zoom(to: source, previous: nil)
+        mirror.showChrome(for: 0.01)
+        await sleep(1.2)
+        let zoomed = try await panelShot()
+
+        var panning: [PanelShot] = []
+        for _ in 0..<8 {
+            pin.pan(by: CGVector(dx: -mirror.bounds.width * 0.07, dy: 0))
+            await sleep(0.3)
+            panning.append(try await panelShot())
+        }
+        mirror.showChrome(for: 60)
+        await sleep(0.4)
+        let pannedWithChrome = try await panelShot()
+        guard let showAllButton = buttonCenter(tip: L("全体を表示")) else {
+            throw NSError(domain: "Demo", code: 3, userInfo: [NSLocalizedDescriptionKey: "全体表示のボタンが見つからない"])
+        }
+        pin.showAll()
+        await sleep(1.2)
+        let back = try await panelShot()
+        mirror.showChrome(for: 0.01)
+
+        // コマを組み立てる
+        let captions = (
+            intro: t("資料のウィンドウを、いつも手前に", "Keep the window you’re referring to on top"),
+            pick: t("⌃⌥P で、手前に置きたいウィンドウを選ぶ", "Press ⌃⌥P and pick the window"),
+            float: t("ほかのどのウィンドウよりも手前に浮かぶ", "It floats above every other window"),
+            zoom: t("🔍 で見たいところを拡大", "Click 🔍 and pick an area to zoom"),
+            pan: t("スクロールで位置を移動", "Scroll to move around"),
+            back: t("⤢ で全体に戻る", "Click ⤢ to see it all")
+        )
+        var frames: [(NSBitmapImageRep, Double)] = []
+        func add(_ panel: PanelShot?, rect: NSRect? = nil, highlight: Bool = false,
+                 cursor: (NSCursor, NSPoint)?, caption: String, delay: Double) {
+            let image = draw(size: region.size, pixelScale: 0.75) { canvas in
+                Self.drawFlatWallpaper(in: canvas)
+                Self.drawMenuBar(in: canvas)
+                // 固定する前の場面では、元のウィンドウに画面共有中の印はまだ付いていない
+                Self.drawWindow(panel == nil ? referenceUnpinned : referenceImage, in: referenceFrame)
+                if highlight { Self.drawPickHighlight(referenceFrame) }
+                Self.drawWindow(reportImage, in: reportFrame)
+                if let panel { Self.drawWindow(panel.image, in: rect ?? panel.frame) }
+                if let cursor { Self.drawCursor(cursor.0, at: cursor.1) }
+                Self.drawCaption(caption, in: canvas)
+            }
+            frames.append((image, delay))
+        }
+        func moves(from start: NSPoint, to end: NSPoint, steps: Int) -> [NSPoint] {
+            (1...steps).map { step in
+                let t = CGFloat(step) / CGFloat(steps)
+                let eased = t * t * (3 - 2 * t)
+                return NSPoint(x: start.x + (end.x - start.x) * eased, y: start.y + (end.y - start.y) * eased)
+            }
+        }
+
+        let restPoint = NSPoint(x: reportFrame.minX + 380, y: reportFrame.minY + 150)
+        let pickPoint = NSPoint(x: referenceFrame.minX + 150, y: referenceFrame.maxY - 160)
+        add(nil, cursor: (.arrow, restPoint), caption: captions.intro, delay: 1.6)
+        for point in moves(from: restPoint, to: pickPoint, steps: 4) {
+            add(nil, highlight: true, cursor: (.arrow, point), caption: captions.pick, delay: 0.06)
+        }
+        add(nil, highlight: true, cursor: (.arrow, pickPoint), caption: captions.pick, delay: 0.7)
+        // 元のウィンドウの場所から飛んできて収まる
+        for step in 1...10 {
+            let t = CGFloat(step) / 10
+            let eased = 1 - pow(1 - t, 3)
+            let rect = NSRect(x: referenceFrame.minX + (plain.frame.minX - referenceFrame.minX) * eased,
+                              y: referenceFrame.minY + (plain.frame.minY - referenceFrame.minY) * eased,
+                              width: referenceFrame.width + (plain.frame.width - referenceFrame.width) * eased,
+                              height: referenceFrame.height + (plain.frame.height - referenceFrame.height) * eased)
+            add(plain, rect: rect, cursor: (.arrow, pickPoint), caption: captions.pick, delay: 0.04)
+        }
+        add(withChrome, cursor: (.arrow, pickPoint), caption: captions.float, delay: 1.6)
+        // 🔍 を押して範囲を選ぶ
+        for point in moves(from: pickPoint, to: zoomButton, steps: 4) {
+            add(withChrome, cursor: (.arrow, point), caption: captions.zoom, delay: 0.06)
+        }
+        add(withChrome, cursor: (.pointingHand, zoomButton), caption: captions.zoom, delay: 0.5)
+        for (index, (shot, corner)) in selecting.enumerated() {
+            add(shot, cursor: (.crosshair, corner), caption: captions.zoom, delay: index == 0 ? 0.5 : 0.08)
+        }
+        add(selecting.last!.0, cursor: (.crosshair, selecting.last!.1), caption: captions.zoom, delay: 0.4)
+        let inside = NSPoint(x: zoomed.frame.midX, y: zoomed.frame.midY - 20)
+        add(zoomed, cursor: (.arrow, inside), caption: captions.zoom, delay: 1.5)
+        // スクロールで動かす
+        for shot in panning {
+            add(shot, cursor: (.arrow, NSPoint(x: shot.frame.midX, y: shot.frame.midY - 20)), caption: captions.pan, delay: 0.09)
+        }
+        add(panning.last!, cursor: (.arrow, NSPoint(x: panning.last!.frame.midX, y: panning.last!.frame.midY - 20)),
+            caption: captions.pan, delay: 1.0)
+        // ⤢ で全体に戻る
+        for point in moves(from: NSPoint(x: pannedWithChrome.frame.midX, y: pannedWithChrome.frame.midY - 20), to: showAllButton, steps: 3) {
+            add(pannedWithChrome, cursor: (.arrow, point), caption: captions.back, delay: 0.06)
+        }
+        add(pannedWithChrome, cursor: (.pointingHand, showAllButton), caption: captions.back, delay: 0.5)
+        add(back, cursor: (.arrow, NSPoint(x: back.frame.midX, y: back.frame.minY - 30)), caption: captions.back, delay: 1.8)
+
+        try writeGIF(frames, name: "demo\(suffix).gif")
+    }
+
+    private func writeGIF(_ frames: [(NSBitmapImageRep, Double)], name: String) throws {
+        let url = output.appendingPathComponent(name)
+        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.gif.identifier as CFString, frames.count, nil) else {
+            throw NSError(domain: "Demo", code: 4, userInfo: [NSLocalizedDescriptionKey: "GIF を作れない"])
+        }
+        CGImageDestinationSetProperties(destination, [
+            kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0],
+        ] as CFDictionary)
+        for (rep, delay) in frames {
+            guard let image = rep.cgImage else { continue }
+            CGImageDestinationAddImage(destination, image, [
+                kCGImagePropertyGIFDictionary: [
+                    kCGImagePropertyGIFDelayTime: delay,
+                    kCGImagePropertyGIFUnclampedDelayTime: delay,
+                ],
+            ] as CFDictionary)
+        }
+        guard CGImageDestinationFinalize(destination) else {
+            throw NSError(domain: "Demo", code: 4, userInfo: [NSLocalizedDescriptionKey: "GIF を書き出せない"])
+        }
+        let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
+        print("  \(name) \(frames.count) コマ \(size / 1024) KB")
+    }
+
+    /// GitHub のソーシャルプレビュー（1280×640）。リンクを貼ったときのカードに出る
+    func makeSocialPreview() async throws {
+        pin.mirror.showChrome(for: 60)
+        await sleep(0.4)
+        let panel = try await capture(pin.panel)
+        let reportImage = try await capture(report)
+        let icon = NSImage(contentsOf: output.appendingPathComponent("icon-1024.png"))
+        let size = NSSize(width: 1280, height: 640)
+        let rep = draw(size: size, pixelScale: 1) { canvas in
+            Self.drawWallpaper(in: canvas)
+            // 右側：作業中のウィンドウの上に、パネルが浮いている
+            let reportWidth: CGFloat = 560
+            let reportHeight = reportWidth * CGFloat(reportImage.height) / CGFloat(reportImage.width)
+            Self.drawWindow(reportImage, in: NSRect(x: 700, y: -130, width: reportWidth, height: reportHeight))
+            let panelWidth: CGFloat = 430
+            let panelHeight = panelWidth * CGFloat(panel.height) / CGFloat(panel.width)
+            Self.drawWindow(panel, in: NSRect(x: 806, y: 640 - 52 - panelHeight, width: panelWidth, height: panelHeight))
+            // 左側：名前とキャッチコピー
+            icon?.draw(in: NSRect(x: 64, y: 368, width: 196, height: 196))
+            Self.drawLeft("SideWindow", size: 84, weight: .bold, at: NSPoint(x: 84, y: 262))
+            Self.drawLeft("参照したいウィンドウを、いつも手前に。", size: 32, weight: .semibold, at: NSPoint(x: 88, y: 204))
+            Self.drawLeft("Keep the window you’re referring to always on top.", size: 23, weight: .medium, at: NSPoint(x: 88, y: 160))
+            Self.drawLeft("macOS ・ 無料 ・ オープンソース  /  Free & open source", size: 19, weight: .regular,
+                          at: NSPoint(x: 88, y: 96), alpha: 0.8)
+        }
+        try write(rep, name: "social-preview.png")
+    }
+
+    private static func drawFlatWallpaper(in rect: NSRect) {
+        color(0x5A5FD8).setFill()
+        rect.fill()
+    }
+
+    /// ウィンドウを選ぶときの強調（どのウィンドウを選んでいるか分かるように）
+    private static func drawPickHighlight(_ frame: NSRect) {
+        let path = NSBezierPath(roundedRect: frame.insetBy(dx: -3, dy: -3), xRadius: 14, yRadius: 14)
+        NSColor.controlAccentColor.withAlphaComponent(0.18).setFill()
+        path.fill()
+        path.lineWidth = 5
+        NSColor.controlAccentColor.setStroke()
+        path.stroke()
+    }
+
+    private static func drawCursor(_ cursor: NSCursor, at point: NSPoint, scale: CGFloat = 1.3) {
+        let image = cursor.image
+        let size = NSSize(width: image.size.width * scale, height: image.size.height * scale)
+        let hot = NSPoint(x: cursor.hotSpot.x * scale, y: cursor.hotSpot.y * scale)
+        image.draw(in: NSRect(x: point.x - hot.x, y: point.y - (size.height - hot.y), width: size.width, height: size.height))
+    }
+
+    private static func drawCaption(_ text: String, in canvas: NSRect) {
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 28, weight: .semibold),
+            .foregroundColor: NSColor.white,
+        ]
+        let textSize = (text as NSString).size(withAttributes: attributes)
+        let pill = NSRect(x: canvas.midX - textSize.width / 2 - 24, y: 30, width: textSize.width + 48, height: textSize.height + 20)
+        NSColor.black.withAlphaComponent(0.66).setFill()
+        NSBezierPath(roundedRect: pill, xRadius: pill.height / 2, yRadius: pill.height / 2).fill()
+        (text as NSString).draw(at: NSPoint(x: pill.minX + 24, y: pill.minY + 10), withAttributes: attributes)
+    }
+
+    private static func drawLeft(_ text: String, size: CGFloat, weight: NSFont.Weight, at point: NSPoint, alpha: CGFloat = 1) {
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor.black.withAlphaComponent(0.25)
+        shadow.shadowBlurRadius = 6
+        (text as NSString).draw(at: point, withAttributes: [
+            .font: NSFont.systemFont(ofSize: size, weight: weight),
+            .foregroundColor: NSColor.white.withAlphaComponent(alpha),
+            .shadow: shadow,
         ])
     }
 }

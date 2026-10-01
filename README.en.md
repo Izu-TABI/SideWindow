@@ -4,11 +4,28 @@
 
 <p align="center">Keep the window you’re referring to always on top.</p>
 
+<p align="center">
+  <a href="https://github.com/Izu-TABI/SideWindow/releases/latest"><img src="https://img.shields.io/github/v/release/Izu-TABI/SideWindow" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/macOS-15.2%2B-blue" alt="macOS 15.2 or later">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
+  <a href="https://github.com/Izu-TABI/SideWindow/releases"><img src="https://img.shields.io/github/downloads/Izu-TABI/SideWindow/total" alt="Downloads"></a>
+</p>
+
 <p align="center">English | <a href="README.md">日本語</a></p>
 
-![Writing a report while the reference window behind it is mirrored in the panel at the top right](docs/images/hero-en.png)
+<p align="center"><img src="docs/images/demo-en.gif" width="760" alt="Pinning a reference window, zooming in with 🔍, scrolling around, and going back to the whole window with ⤢"></p>
 
-SideWindow is a macOS menu bar app for keeping reference material in view — a document while you write a report, a video call while you take notes, and so on. It mirrors the window you choose into a small panel that always floats on top. Even when the original window is buried behind others, the panel keeps showing it live.
+SideWindow is a macOS menu bar app that keeps any window always on top — like PowerToys’ Always On Top on Windows, but for any app on your Mac. It’s made for keeping reference material in view: a document while you write a report, a video call while you take notes, and so on. It mirrors the window you choose into a small floating panel, and even when the original window is buried behind others, the panel keeps showing it live.
+
+## Features
+
+- **No permissions needed**: works without Screen Recording or Accessibility access, because you pick windows with the system window picker.
+- **Zoom into what you need**: pick an area to zoom in, then scroll to move around.
+- **Stays out of your way**: hides itself while the original window is in front, and can be made translucent or click-through.
+- **No network access**: never connects to the internet, and never collects or sends any data.
+- **Free and open source**: MIT license, with English and Japanese UI.
+
+![Writing a report while the reference window behind it is mirrored in the panel at the top right](docs/images/hero-en.png)
 
 ## Download
 
@@ -17,6 +34,12 @@ SideWindow is a macOS menu bar app for keeping reference material in view — a 
 1. Open the zip and move `SideWindow.app` to your Applications folder.
 2. Open `SideWindow.app`. Because the app isn’t notarized by Apple, the first launch shows a warning that it can’t be opened — click Done.
 3. Open System Settings → Privacy & Security, scroll down, and click Open Anyway next to SideWindow. Confirm with Open Anyway again.
+
+If you use Terminal, you can also install it with Homebrew (you’ll still need to click Open Anyway on first launch):
+
+```bash
+brew install --cask izu-tabi/tap/sidewindow
+```
 
 You’re ready when the welcome guide appears. The app follows your Mac’s language settings: it’s shown in Japanese if Japanese comes before English in your preferred languages, and in English otherwise. Older versions are on the [Releases](https://github.com/Izu-TABI/SideWindow/releases) page.
 
@@ -107,7 +130,7 @@ End-to-end tests that drive a real panel — moving, resizing, zooming, scrollin
 ./scripts/screenshots.sh
 ```
 
-Lays out fictional document and report windows, actually pins one, captures only SideWindow’s own windows, and composites them, in both Japanese and English. It never captures the whole screen, so no other apps or personal information show up.
+Lays out fictional document and report windows, actually pins one, captures only SideWindow’s own windows, and composites them into the README images, the animated demo GIF, and the social preview, in both Japanese and English. It never captures the whole screen, so no other apps or personal information show up.
 
 ### Publishing a release
 
@@ -117,7 +140,7 @@ Bump `CFBundleShortVersionString` in `Resources/Info.plist`, commit, and push. T
 ./scripts/release.sh
 ```
 
-It builds a universal app for Apple silicon and Intel and publishes a `v<version>` GitHub release with `SideWindow.zip` attached.
+It builds a universal app for Apple silicon and Intel, publishes a `v<version>` GitHub release with `SideWindow.zip` attached, and then updates the Homebrew tap ([Izu-TABI/homebrew-tap](https://github.com/Izu-TABI/homebrew-tap)) to the new version.
 
 ## Project layout
 
