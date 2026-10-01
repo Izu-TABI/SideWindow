@@ -120,7 +120,7 @@ final class PinController: NSObject, SCStreamOutput, SCStreamDelegate {
         case (false, false): title = "\(appName) — \(windowTitle)"
         case (false, true): title = appName
         case (true, false): title = windowTitle
-        case (true, true): title = "ウィンドウ \(index + 1)"
+        case (true, true): title = String(format: L("ウィンドウ %d"), index + 1)
         }
         appIcon = processID.flatMap { NSRunningApplication(processIdentifier: $0)?.icon }
         windowSize = filter.contentRect.size
@@ -188,7 +188,7 @@ final class PinController: NSObject, SCStreamOutput, SCStreamDelegate {
         // SideWindow はいつも背面にいるので、そのままだと App Nap でタイマーが遅れ、
         // 自動で隠す・最小化の検知が鈍くなる。固定しているあいだだけ外してもらう
         activity = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep,
-                                                          reason: "固定したウィンドウを映し続けるため")
+                                                          reason: "Keeping pinned windows up to date")
         // 元のウィンドウの場所から飛んできて収まる（どのウィンドウが固定されたか分かるように）
         if let windowID, case .shown(let bounds) = SourceWindow.presence(of: windowID, processID: processID) {
             panel.setFrame(SourceWindow.appKitFrame(fromWindowBounds: bounds), display: false)
@@ -736,30 +736,30 @@ final class PinController: NSObject, SCStreamOutput, SCStreamDelegate {
     func makeMenu() -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = false
-        menu.addItem(item("元のウィンドウを開く", #selector(openSource)))
+        menu.addItem(item(L("元のウィンドウを開く"), #selector(openSource)))
         menu.addItem(.separator())
 
-        menu.addItem(item(zoom == nil ? "範囲を選んで拡大" : "さらに拡大", #selector(beginZoom)))
+        menu.addItem(item(zoom == nil ? L("範囲を選んで拡大") : L("さらに拡大"), #selector(beginZoom)))
         if zoom != nil {
-            menu.addItem(item("全体から選び直す", #selector(beginZoomFromWhole)))
+            menu.addItem(item(L("全体から選び直す"), #selector(beginZoomFromWhole)))
             if !zoomHistory.isEmpty {
-                menu.addItem(item("拡大をひとつ戻す", #selector(zoomBack)))
+                menu.addItem(item(L("拡大をひとつ戻す"), #selector(zoomBack)))
             }
-            menu.addItem(item("全体を表示", #selector(showAll)))
+            menu.addItem(item(L("全体を表示"), #selector(showAll)))
         }
         menu.addItem(.separator())
 
-        let size = NSMenuItem(title: "サイズ", action: nil, keyEquivalent: "")
+        let size = NSMenuItem(title: L("サイズ"), action: nil, keyEquivalent: "")
         let sizeMenu = NSMenu()
         for scale in PinController.sizeLevels {
-            let sizeItem = item(scale == 1 ? "等倍" : "\(Int(scale * 100))%", #selector(setSize(_:)))
+            let sizeItem = item(scale == 1 ? L("等倍") : "\(Int(scale * 100))%", #selector(setSize(_:)))
             sizeItem.representedObject = scale
             sizeMenu.addItem(sizeItem)
         }
         size.submenu = sizeMenu
         menu.addItem(size)
 
-        let opacityItem = NSMenuItem(title: "不透明度", action: nil, keyEquivalent: "")
+        let opacityItem = NSMenuItem(title: L("不透明度"), action: nil, keyEquivalent: "")
         let opacityMenu = NSMenu()
         for level in PinController.opacityLevels {
             let levelItem = item("\(Int(level * 100))%", #selector(setOpacity(_:)))
@@ -771,18 +771,18 @@ final class PinController: NSObject, SCStreamOutput, SCStreamDelegate {
         menu.addItem(opacityItem)
         menu.addItem(.separator())
 
-        let autoHide = item("元のウィンドウが手前にあるときは隠す", #selector(toggleHidesWhenSourceIsFront))
+        let autoHide = item(L("元のウィンドウが手前にあるときは隠す"), #selector(toggleHidesWhenSourceIsFront))
         autoHide.state = hidesWhenSourceIsFront ? .on : .off
         menu.addItem(autoHide)
-        let sharpen = item("拡大表示をくっきりさせる", #selector(toggleSharpensZoom))
+        let sharpen = item(L("拡大表示をくっきりさせる"), #selector(toggleSharpensZoom))
         sharpen.state = sharpensZoom ? .on : .off
         menu.addItem(sharpen)
-        let clickThrough = item("クリックを透過", #selector(toggleClickThrough))
-        clickThrough.subtitle = "下のウィンドウを操作できます。⌘ を押しているあいだはパネルを操作できます"
+        let clickThrough = item(L("クリックを透過"), #selector(toggleClickThrough))
+        clickThrough.subtitle = L("下のウィンドウを操作できます。⌘ を押しているあいだはパネルを操作できます")
         clickThrough.state = isClickThrough ? .on : .off
         menu.addItem(clickThrough)
         menu.addItem(.separator())
-        menu.addItem(item("固定を解除", #selector(close)))
+        menu.addItem(item(L("固定を解除"), #selector(close)))
         return menu
     }
 

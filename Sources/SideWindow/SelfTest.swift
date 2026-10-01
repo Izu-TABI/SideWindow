@@ -9,6 +9,8 @@ import ScreenCaptureKit
 final class SelfTest {
     private let outputDirectory: URL
     private var results: [(name: String, passed: Bool, detail: String)] = []
+    /// 環境のせいで確かめられなかった項目（失敗には数えない）
+    private var skipped: [(name: String, reason: String)] = []
     private var source: NSWindow!
     private var other: NSWindow!
     private var pin: PinController!
@@ -50,6 +52,7 @@ final class SelfTest {
             await testQuality()
             await testHideAllAndHighlight()
             await testStatusMenu()
+            await testNoJapaneseInEnglish()
             await testClickThroughEscape()
             await testClickDoesNotStealKeyboard()
             await testAutoHide()
@@ -65,8 +68,11 @@ final class SelfTest {
         for result in results {
             print("\(result.passed ? "✔" : "✘") \(result.name)\(result.detail.isEmpty ? "" : " — \(result.detail)")")
         }
+        for item in skipped {
+            print("– \(item.name)（確認できず：\(item.reason)）")
+        }
         let failed = results.filter { !$0.passed }.count
-        print("\n\(results.count - failed)/\(results.count) passed")
+        print("\n\(results.count - failed)/\(results.count) passed" + (skipped.isEmpty ? "" : "（確認できず \(skipped.count) 件）"))
         exit(failed == 0 ? 0 : 1)
     }
 
@@ -112,7 +118,7 @@ final class SelfTest {
         let welcome = WelcomeWindowController()
         welcome.show()
         await sleep(0.6)
-        let window = NSApp.windows.first { $0.title == "SideWindow の使い方" }
+        let window = NSApp.windows.first { $0.title == L("SideWindow の使い方") }
         record("初回の案内ウィンドウが開く", window?.isVisible == true, "")
         if let window { await snapshot(window: window, name: "0-welcome") }
         window?.orderOut(nil)
@@ -201,9 +207,9 @@ final class SelfTest {
                                            window: pin.panel))
         record("動かすとまた出る", mirror.isChromeVisible, "")
         let titles = pin.makeMenu().items.map(\.title)
-        record("「•••」ボタンからすべての操作を選べる", findButton(tip: "その他の操作") != nil
+        record("「•••」ボタンからすべての操作を選べる", findButton(tip: L("その他の操作")) != nil
                    && ["元のウィンドウを開く", "範囲を選んで拡大", "サイズ", "不透明度", "クリックを透過", "固定を解除"]
-                       .allSatisfy(titles.contains), "\(titles)")
+                       .map(L).allSatisfy(titles.contains), "\(titles)")
     }
 
     private func testHoverMakesOpaque() async {
@@ -405,19 +411,69 @@ final class SelfTest {
         delegate.menuNeedsUpdate(menu)
         let titles = menu.items.map(\.title)
         let expected = ["ウィンドウを固定…", "固定中", "すべて隠す", "すべての固定を解除", "ログイン時に起動", "使い方",
-                        "SideWindow について", "SideWindow を終了"]
+                        "SideWindow について", "SideWindow を終了"].map(L)
         record("メニューバーのメニューに必要な項目がそろっている", expected.allSatisfy(titles.contains), "\(titles)")
         let first = menu.items.first
         record("「ウィンドウを固定…」にショートカット ⌃⌥P が出る",
                first?.keyEquivalent == "p" && first?.keyEquivalentModifierMask == [.control, .option], "")
         let row = menu.items.first { ($0.representedObject as AnyObject?) === pin }
         record("固定中のウィンドウはアプリのアイコンと操作のサブメニュー付きで並ぶ",
-               row?.image != nil && row?.submenu?.items.contains { $0.title == "固定を解除" } == true, "")
+               row?.image != nil && row?.submenu?.items.contains { $0.title == L("固定を解除") } == true, "")
         delegate.menu(menu, willHighlight: row)
         await sleep(0.2)
         record("メニューで指したパネルの枠が光る", pin.mirror.isHighlighted, "")
         delegate.menuDidClose(menu)
         record("メニューを閉じると元に戻る", !pin.mirror.isHighlighted, "")
+    }
+
+    /// 英語の環境で動かしたとき、画面に出る文字に日本語（訳し忘れ）が残っていないか
+    private func testNoJapaneseInEnglish() async {
+        guard !Localization.usesJapanese else { return }
+        var texts: [String] = []
+        func collect(_ menu: NSMenu) {
+            for item in menu.items {
+                texts.append(item.title)
+                if let subtitle = item.subtitle { texts.append(subtitle) }
+                if let submenu = item.submenu { collect(submenu) }
+            }
+        }
+        func collect(_ view: NSView) {
+            if let button = view as? NSButton { texts += [button.title, button.toolTip ?? ""] }
+            if let field = view as? NSTextField { texts.append(field.stringValue) }
+            view.subviews.forEach(collect)
+        }
+        collect(pin.makeMenu())
+        let delegate = AppDelegate()
+        delegate.pins = [pin]
+        let menu = NSMenu()
+        delegate.menuNeedsUpdate(menu)
+        collect(menu)
+        collect(pin.mirror)
+        for notice in [MirrorView.Notice.minimized, .minimizedNeedsAccessibility, .appHidden, .inactiveTab, .unavailable] {
+            texts += [notice.title, notice.detail, notice.actionTitle ?? ""]
+        }
+        texts += ["範囲をドラッグ ・ Esc で取り消し", "全体から選び直す", "さらに拡大", "拡大をひとつ戻す", "全体を表示",
+                  "すべて表示", "固定中のウィンドウはありません", "クリック透過中", "ウィンドウ %d"].map(L)
+        let welcome = WelcomeWindowController()
+        welcome.show()
+        await sleep(0.4)
+        if let window = NSApp.windows.first(where: { $0.title == L("SideWindow の使い方") }), let content = window.contentView {
+            texts.append(window.title)
+            collect(content)
+            window.orderOut(nil)
+        } else {
+            texts.append("案内ウィンドウが見つからない")
+        }
+        // 案内を閉じたあと元のウィンドウが手前に来るとパネルが自動で隠れるので、書いているレポートを手前に戻す
+        bringToFront(other)
+        await sleep(0.6)
+        // 固定したウィンドウ自身の題名（ここではテスト用ウィンドウの日本語の題名）は訳す対象ではない
+        let sourceTitles: Set<String> = [pin.title, pin.mirror.title]
+        let japanese = texts.filter { text in
+            !sourceTitles.contains(text) && !text.contains(pin.mirror.title) && text.unicodeScalars.contains { (0x3040...0x30FF).contains($0.value) || (0x4E00...0x9FFF).contains($0.value) }
+        }
+        record("英語の環境では画面の文字がすべて英語になる（訳し忘れがない）", japanese.isEmpty && texts.count > 40,
+               japanese.isEmpty ? "\(texts.count) 件" : japanese.joined(separator: " / "))
     }
 
     private func testClickThroughEscape() async {
@@ -482,7 +538,7 @@ final class SelfTest {
         await sleep(2.0)
         record("元に戻らなかったら、アクセシビリティの許可を案内する", pin.mirror.notice == .minimizedNeedsAccessibility,
                "notice \(String(describing: pin.mirror.notice))")
-        if let button = findHintButton(title: "許可する…") {
+        if let button = findHintButton(title: L("許可する…")) {
             let point = pin.mirror.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), from: button)
             record("案内から「許可する…」を押せる", !button.isHiddenOrHasHiddenAncestor
                        && pin.mirror.hitTest(pin.mirror.convert(point, to: pin.mirror.superview)) === button
@@ -534,12 +590,12 @@ final class SelfTest {
             record("背面にいてもボタンの上でポインタが指の形になる", false, "前面に戻すアプリがない")
             return
         }
-        // パネルをマウスの真下に置く
-        let mouse = NSEvent.mouseLocation
-        var frame = pin.panel.frame
-        frame.origin = NSPoint(x: mouse.x - frame.width / 2, y: mouse.y - frame.height / 2)
-        pin.panel.setFrame(frame, display: true)
-        // テストアプリを背面に回す
+        let mirror = pin.mirror
+        let button = findButton(tip: L("範囲を選んで拡大"))!
+        // 実際の使い方と同じく「マウスがパネルの上にある」状態にしてから背面に回る。
+        // （背面に回ったあとで、止まっているマウスの下にパネルを動かしても、macOS はマウスの下のウィンドウを更新しない）
+        moveSoMouseIsOver(button.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), to: nil))
+        await sleep(0.3)
         NSApp.yieldActivation(to: previous)
         let config = NSWorkspace.OpenConfiguration()
         config.activates = true
@@ -549,27 +605,34 @@ final class SelfTest {
             record("背面にいてもボタンの上でポインタが指の形になる", false, "テストアプリが背面に回らなかった")
             return
         }
-        let mirror = pin.mirror
-        mirror.mouseEntered(with: mouseEvent(.mouseMoved, at: mouse))
-        await sleep(0.3)
-        // 本物のマウスの真下に確かめたい場所が来るようパネルを動かしてから、その位置の動きを送る
-        // （本物のマウスが少し動いても同じ形になるように）
-        let button = findButton(tip: "範囲を選んで拡大")!
-        moveSoMouseIsOver(button.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), to: nil))
-        // 止まっているマウスの下にパネルを動かしたので、macOS がマウスの下のウィンドウを更新するのを待つ
-        await sleep(0.3)
+        mirror.mouseEntered(with: mouseEvent(.mouseMoved, at: NSEvent.mouseLocation, window: pin.panel))
         mirror.showChrome(for: 5)
-        mirror.mouseMoved(with: mouseEvent(.mouseMoved, at: NSEvent.mouseLocation, window: pin.panel))
-        await sleep(0.05)
-        let onButton = NSCursor.currentSystem?.hotSpot
-        moveSoMouseIsOver(mirror.convert(NSPoint(x: mirror.bounds.midX, y: mirror.bounds.midY * 0.8), to: nil))
-        await sleep(0.3)
-        mirror.mouseMoved(with: mouseEvent(.mouseMoved, at: NSEvent.mouseLocation, window: pin.panel))
-        await sleep(0.05)
-        let onBody = NSCursor.currentSystem?.hotSpot
+        // ボタンの上（本物のマウスの位置）→ パネルの中ほど の順に動きを送り、そのたびに画面のポインタを確かめる
+        var onButton: NSPoint?
+        var onBody: NSPoint?
+        let body = pin.panel.convertPoint(toScreen: mirror.convert(NSPoint(x: mirror.bounds.midX, y: mirror.bounds.midY * 0.8), to: nil))
+        for _ in 0..<3 {
+            mirror.mouseMoved(with: mouseEvent(.mouseMoved, at: NSEvent.mouseLocation, window: pin.panel))
+            await sleep(0.05)
+            onButton = NSCursor.currentSystem?.hotSpot
+            mirror.mouseMoved(with: mouseEvent(.mouseMoved, at: body, window: pin.panel))
+            await sleep(0.05)
+            onBody = NSCursor.currentSystem?.hotSpot
+            if onButton == NSCursor.pointingHand.hotSpot && onBody == NSCursor.arrow.hotSpot { break }
+            await sleep(0.3)
+        }
+        let state = "ignores=\(pin.panel.ignoresMouseEvents) alpha=\(pin.panel.alphaValue) hidden=\(pin.isHiddenForSource) "
+            + "mouseInside=\(pin.panel.frame.contains(NSEvent.mouseLocation)) active=\(NSApp.isActive)"
+        let passed = onButton == NSCursor.pointingHand.hotSpot && onBody == NSCursor.arrow.hotSpot
+        // テスト中に本物のマウスがパネルの外へ動くと、画面のポインタはその下のアプリのものになるので確かめられない
+        if !passed, !pin.panel.frame.contains(NSEvent.mouseLocation) {
+            skipped.append(("背面にいてもボタンの上でポインタが指の形になる", "テスト中に本物のマウスがパネルの外へ動いた"))
+            return
+        }
         record("背面にいてもボタンの上でポインタが指の形になる（画面のポインタで確認）",
-               onButton == NSCursor.pointingHand.hotSpot && onBody == NSCursor.arrow.hotSpot,
-               "ボタン上 \(String(describing: onButton)) / 中ほど \(String(describing: onBody)) / front \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "")")
+               passed,
+               "ボタン上 \(String(describing: onButton)) / 中ほど \(String(describing: onBody)) / "
+                   + "front \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "") / \(state)")
     }
 
     /// パネルの windowPoint（ウィンドウ座標）が本物のマウスの真下に来るよう動かす
@@ -578,6 +641,8 @@ final class SelfTest {
         let current = pin.panel.convertPoint(toScreen: windowPoint)
         pin.panel.setFrameOrigin(NSPoint(x: pin.panel.frame.minX + mouse.x - current.x,
                                          y: pin.panel.frame.minY + mouse.y - current.y))
+        // 動かしただけでは、止まっているマウスの下のウィンドウが更新されないことがあるので、手前に出し直す
+        pin.panel.orderFrontRegardless()
     }
 
     private func testSourceClosed() async {
@@ -619,7 +684,7 @@ final class SelfTest {
     }
 
     private func zoomButtonPoint() -> NSPoint {
-        let button = findButton(tip: "範囲を選んで拡大")!
+        let button = findButton(tip: L("範囲を選んで拡大"))!
         return button.window!.convertPoint(toScreen: button.convert(NSPoint(x: button.bounds.midX, y: button.bounds.midY), to: nil))
     }
 
@@ -638,7 +703,7 @@ final class SelfTest {
         abs(a.width * a.height - b.width * b.height) <= b.width * b.height * 0.03
     }
 
-    private func findHintButton(title: String = "全体から選ぶ") -> HintButton? {
+    private func findHintButton(title: String = L("全体から選ぶ")) -> HintButton? {
         func search(_ view: NSView) -> HintButton? {
             if let button = view as? HintButton, button.title == title { return button }
             for sub in view.subviews { if let found = search(sub) { return found } }

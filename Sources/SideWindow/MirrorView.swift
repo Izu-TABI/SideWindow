@@ -15,25 +15,25 @@ final class MirrorView: NSView {
 
         var title: String {
             switch self {
-            case .minimized, .minimizedNeedsAccessibility: "最小化されています"
-            case .appHidden: "アプリが非表示になっています"
-            case .inactiveTab: "別のタブが表示されています"
-            case .unavailable: "映像を取得できません"
+            case .minimized, .minimizedNeedsAccessibility: L("最小化されています")
+            case .appHidden: L("アプリが非表示になっています")
+            case .inactiveTab: L("別のタブが表示されています")
+            case .unavailable: L("映像を取得できません")
             }
         }
 
         var detail: String {
             switch self {
-            case .minimized: "クリックで元に戻す"
-            case .minimizedNeedsAccessibility: "アクセシビリティを許可すると、確実に元に戻せます"
-            case .appHidden: "クリックで表示する"
-            case .inactiveTab: "このタブに切り替えると、また映ります"
-            case .unavailable: "クリックで元のウィンドウを開く"
+            case .minimized: L("クリックで元に戻す")
+            case .minimizedNeedsAccessibility: L("アクセシビリティを許可すると、確実に元に戻せます")
+            case .appHidden: L("クリックで表示する")
+            case .inactiveTab: L("このタブに切り替えると、また映ります")
+            case .unavailable: L("クリックで元のウィンドウを開く")
             }
         }
 
         var actionTitle: String? {
-            self == .minimizedNeedsAccessibility ? "許可する…" : nil
+            self == .minimizedNeedsAccessibility ? L("許可する…") : nil
         }
     }
 
@@ -127,7 +127,7 @@ final class MirrorView: NSView {
     private let openButton = BarButton()
     private let moreButton = BarButton()
     private let hint = SelectionHint()
-    private let passThroughHint = Pill(text: "クリック透過中 ・ ⌘ を押している間は操作できます")
+    private let passThroughHint = Pill(text: L("クリック透過中 ・ ⌘ を押している間は操作できます"))
     private let noticeTitle = NSTextField(labelWithString: "")
     private let noticeDetail = NSTextField(labelWithString: "")
     private let noticeButton = HintButton(title: "", target: nil, action: nil)
@@ -186,13 +186,13 @@ final class MirrorView: NSView {
     private func setUpBar() {
         bar.alphaValue = 0
 
-        let close = BarButton(symbol: "xmark", tip: "固定を解除", target: self, action: #selector(closeTapped))
-        zoomButton.configure(symbol: "plus.magnifyingglass", tip: "範囲を選んで拡大", target: self, action: #selector(zoomTapped))
-        showAllButton.configure(symbol: "arrow.up.left.and.arrow.down.right", tip: "全体を表示",
+        let close = BarButton(symbol: "xmark", tip: L("固定を解除"), target: self, action: #selector(closeTapped))
+        zoomButton.configure(symbol: "plus.magnifyingglass", tip: L("範囲を選んで拡大"), target: self, action: #selector(zoomTapped))
+        showAllButton.configure(symbol: "arrow.up.left.and.arrow.down.right", tip: L("全体を表示"),
                                 target: self, action: #selector(showAllTapped))
-        openButton.configure(symbol: "arrow.up.forward.app", tip: "元のウィンドウを開く（ダブルクリックでも開けます）",
+        openButton.configure(symbol: "arrow.up.forward.app", tip: L("元のウィンドウを開く（ダブルクリックでも開けます）"),
                              target: self, action: #selector(openTapped))
-        moreButton.configure(symbol: "ellipsis", tip: "その他の操作", target: self, action: #selector(moreTapped(_:)))
+        moreButton.configure(symbol: "ellipsis", tip: L("その他の操作"), target: self, action: #selector(moreTapped(_:)))
 
         iconView.imageScaling = .scaleProportionallyUpOrDown
         iconView.translatesAutoresizingMaskIntoConstraints = false
@@ -715,7 +715,7 @@ final class BarButton: NSButton {
 
 /// 範囲選択中の案内。拡大中は「全体から選ぶ」ボタンも出す
 private final class SelectionHint: NSView {
-    let wholeButton = HintButton(title: "全体から選ぶ", target: nil, action: nil)
+    let wholeButton = HintButton(title: L("全体から選ぶ"), target: nil, action: nil)
     private let label = NSTextField(labelWithString: "")
     private let stack = NSStackView()
 
@@ -723,8 +723,8 @@ private final class SelectionHint: NSView {
         didSet {
             wholeButton.isHidden = !showsWholeButton
             label.stringValue = showsWholeButton
-                ? "範囲をドラッグ ・ Esc で取り消し"
-                : "拡大する範囲をドラッグ ・ Esc で取り消し"
+                ? L("範囲をドラッグ ・ Esc で取り消し")
+                : L("拡大する範囲をドラッグ ・ Esc で取り消し")
         }
     }
 

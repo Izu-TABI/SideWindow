@@ -16,7 +16,7 @@ enum LoginItem {
             }
         } catch {
             let alert = NSAlert()
-            alert.messageText = enabled ? "ログイン時に起動するよう設定できませんでした" : "ログイン時の起動をやめられませんでした"
+            alert.messageText = enabled ? L("ログイン時に起動するよう設定できませんでした") : L("ログイン時の起動をやめられませんでした")
             alert.informativeText = error.localizedDescription
             NSApp.activate()
             alert.runModal()
@@ -60,7 +60,7 @@ final class WelcomeWindowController: NSObject {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: 560),
                               styleMask: [.titled, .closable, .fullSizeContentView],
                               backing: .buffered, defer: false)
-        window.title = "SideWindow の使い方"
+        window.title = L("SideWindow の使い方")
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
@@ -73,39 +73,39 @@ final class WelcomeWindowController: NSObject {
             icon.heightAnchor.constraint(equalToConstant: 84),
         ])
         let title = Self.label("SideWindow", font: .systemFont(ofSize: 24, weight: .bold))
-        let subtitle = Self.label("参照したいウィンドウを、いつも手前に。", font: .systemFont(ofSize: 13),
+        let subtitle = Self.label(L("参照したいウィンドウを、いつも手前に。"), font: .systemFont(ofSize: 13),
                                   color: .secondaryLabelColor)
 
         let bodyWidth = width - 64 - 46
         let steps = NSStackView(views: [
-            Self.step(symbol: "cursorarrow.click", title: "ウィンドウを選ぶ",
+            Self.step(symbol: "cursorarrow.click", title: L("固定するウィンドウを選ぶ"),
                       body: Self.menuBarText(), width: bodyWidth),
-            Self.step(symbol: "arrow.up.and.down.and.arrow.left.and.right", title: "好きな場所・大きさに",
-                      body: NSAttributedString(string: "ドラッグで移動、端や角をドラッグでサイズを変えられます。画面の端に近づけると吸い付きます。"),
+            Self.step(symbol: "arrow.up.and.down.and.arrow.left.and.right", title: L("好きな場所・大きさに"),
+                      body: NSAttributedString(string: L("ドラッグで移動、端や角をドラッグでサイズを変えられます。画面の端に近づけると吸い付きます。")),
                       width: bodyWidth),
-            Self.step(symbol: "plus.magnifyingglass", title: "見たいところを拡大",
-                      body: NSAttributedString(string: "マウスを乗せると出るボタンの 🔍 で範囲を選ぶと拡大します。拡大中はスクロールで位置を動かせます。"),
+            Self.step(symbol: "plus.magnifyingglass", title: L("見たいところを拡大"),
+                      body: NSAttributedString(string: L("マウスを乗せると出るボタンの 🔍 で範囲を選ぶと拡大します。拡大中はスクロールで位置を動かせます。")),
                       width: bodyWidth),
-            Self.step(symbol: "arrow.up.forward.app", title: "元のウィンドウへ",
-                      body: NSAttributedString(string: "ダブルクリックで元のウィンドウを開けます。元のウィンドウを見ているあいだ、パネルは自動で隠れます。"),
+            Self.step(symbol: "arrow.up.forward.app", title: L("元のウィンドウへ"),
+                      body: NSAttributedString(string: L("ダブルクリックで元のウィンドウを開けます。元のウィンドウを見ているあいだ、パネルは自動で隠れます。")),
                       width: bodyWidth),
         ])
         steps.orientation = .vertical
         steps.alignment = .leading
         steps.spacing = 16
 
-        let checkbox = NSButton(checkboxWithTitle: "ログイン時に起動する", target: self, action: #selector(loginToggled(_:)))
+        let checkbox = NSButton(checkboxWithTitle: L("ログイン時に起動する"), target: self, action: #selector(loginToggled(_:)))
         checkbox.state = LoginItem.isEnabled ? .on : .off
         loginCheckbox = checkbox
 
-        let choose = NSButton(title: "ウィンドウを選ぶ", target: self, action: #selector(chooseTapped))
+        let choose = NSButton(title: L("ウィンドウを選ぶ"), target: self, action: #selector(chooseTapped))
         choose.bezelStyle = .push
         choose.controlSize = .large
         choose.keyEquivalent = "\r"
         choose.translatesAutoresizingMaskIntoConstraints = false
         choose.widthAnchor.constraint(greaterThanOrEqualToConstant: 200).isActive = true
 
-        let footer = Self.label("この案内は、メニューバーのアイコンの「使い方」からいつでも開けます。",
+        let footer = Self.label(L("この案内は、メニューバーのアイコンの「使い方」からいつでも開けます。"),
                                 font: .systemFont(ofSize: 11), color: .tertiaryLabelColor)
 
         let stack = NSStackView(views: [icon, title, subtitle, steps, checkbox, choose, footer])
@@ -136,12 +136,12 @@ final class WelcomeWindowController: NSObject {
 
     /// 「メニューバーの [アイコン] をクリックするか ⌃⌥P を押して…」（アイコンは文字の中に入れる）
     private static func menuBarText() -> NSAttributedString {
-        let text = NSMutableAttributedString(string: "メニューバーの ")
+        let text = NSMutableAttributedString(string: L("メニューバーの "))
         let attachment = NSTextAttachment()
         attachment.image = tinted(StatusIcon.make(), color: .labelColor)
         attachment.bounds = CGRect(x: 0, y: -3, width: 15, height: 15)
         text.append(NSAttributedString(attachment: attachment))
-        text.append(NSAttributedString(string: " をクリックするか ⌃⌥P を押して、手前に置きたいウィンドウをクリックします。"))
+        text.append(NSAttributedString(string: L(" をクリックするか ⌃⌥P を押して、手前に置きたいウィンドウをクリックします。")))
         return text
     }
 

@@ -2,6 +2,11 @@ import AppKit
 import ScreenCaptureKit
 import UniformTypeIdentifiers
 
+/// 言語に合わせた文（英語の環境で撮ると英語版の画像になる）
+private func t(_ japanese: String, _ english: String) -> String {
+    Localization.usesJapanese ? japanese : english
+}
+
 /// README 用の画像を作る。`SideWindow --demo <保存先>` で実行する（scripts/screenshots.sh）。
 ///
 /// 架空の資料とレポートのウィンドウを並べて実際に固定し、自分のウィンドウだけを撮って壁紙の上に合成する。
@@ -17,6 +22,8 @@ final class DemoScene {
     private var region = NSRect.zero
     private var scale: CGFloat = 2
     private static let menuBarHeight: CGFloat = 28
+    /// 英語版の画像はファイル名の末尾に -en を付ける
+    private var suffix: String { Localization.usesJapanese ? "" : "-en" }
 
     init(output: URL) {
         self.output = output
@@ -57,7 +64,7 @@ final class DemoScene {
         let top = region.maxY - Self.menuBarHeight
         reference = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .miniaturizable, .resizable],
                              backing: .buffered, defer: false)
-        reference.title = "学習時間の資料.pdf"
+        reference.title = t("学習時間の資料.pdf", "Study Hours.pdf")
         slide = SlideView()
         reference.contentView = slide
         reference.setFrame(NSRect(x: region.minX + 56, y: top - 44 - 470, width: 720, height: 470), display: true)
@@ -65,7 +72,7 @@ final class DemoScene {
 
         report = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .miniaturizable, .resizable],
                           backing: .buffered, defer: false)
-        report.title = "レポート草稿"
+        report.title = t("レポート草稿", "Report Draft")
         report.contentView = Self.reportView()
         report.setFrame(NSRect(x: region.minX + 300, y: region.minY + 44, width: 720, height: 500), display: true)
         report.makeKeyAndOrderFront(nil)
@@ -95,7 +102,7 @@ final class DemoScene {
         pin.mirror.showChrome(for: 60)
         await sleep(0.5)
         let image = try await composite(windows: [reference, report, pin.panel])
-        try write(image, name: "hero.png")
+        try write(image, name: "hero\(suffix).png")
     }
 
     /// 拡大の流れ：範囲を選ぶ → 拡大 → スクロールで移動
@@ -128,11 +135,11 @@ final class DemoScene {
         let panned = try await capture(pin.panel)
 
         let image = storyboard([
-            (selecting, "① 🔍 で範囲を選ぶ"),
-            (zoomed, "② 選んだところを拡大"),
-            (panned, "③ スクロールで位置を移動"),
+            (selecting, t("① 🔍 で範囲を選ぶ", "① Click 🔍 and pick an area")),
+            (zoomed, t("② 選んだところを拡大", "② It’s zoomed in")),
+            (panned, t("③ スクロールで位置を移動", "③ Scroll to move around")),
         ])
-        try write(image, name: "zoom.png")
+        try write(image, name: "zoom\(suffix).png")
     }
 
     // MARK: - 撮影と合成
@@ -289,9 +296,10 @@ final class DemoScene {
         text.textContainerInset = NSSize(width: 44, height: 36)
         text.isEditable = false
         text.backgroundColor = .white
-        let body = NSFont(name: "HiraMinProN-W3", size: 14.5) ?? .systemFont(ofSize: 14.5)
-        let heading = NSFont(name: "HiraKakuProN-W6", size: 19) ?? .boldSystemFont(ofSize: 19)
-        let section = NSFont(name: "HiraKakuProN-W6", size: 14.5) ?? .boldSystemFont(ofSize: 14.5)
+        let japanese = Localization.usesJapanese
+        let body = NSFont(name: japanese ? "HiraMinProN-W3" : "Georgia", size: 14.5) ?? .systemFont(ofSize: 14.5)
+        let heading = NSFont(name: japanese ? "HiraKakuProN-W6" : "HelveticaNeue-Bold", size: 19) ?? .boldSystemFont(ofSize: 19)
+        let section = NSFont(name: japanese ? "HiraKakuProN-W6" : "HelveticaNeue-Bold", size: 14.5) ?? .boldSystemFont(ofSize: 14.5)
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = 7
         paragraph.paragraphSpacing = 10
@@ -301,13 +309,15 @@ final class DemoScene {
                 .font: font, .foregroundColor: color, .paragraphStyle: paragraph,
             ]))
         }
-        add("学習時間の変化についての考察\n", heading)
-        add("1. はじめに\n", section)
-        add("本レポートでは、2021年度から2025年度にかけての週あたりの学習時間の変化を取り上げ、その背景にある要因を考察する。\n", body)
-        add("2. 結果\n", section)
-        add("図3に示すように、学習時間は5年間で約1.7倍に増加した。特に2023年度の伸びが大きく、オンライン教材の利用が広がった時期と重なっている。\n", body)
-        add("3. 考察\n", section)
-        add("増加の要因として、", body)
+        add(t("学習時間の変化についての考察\n", "How Study Time Has Changed\n"), heading)
+        add(t("1. はじめに\n", "1. Introduction\n"), section)
+        add(t("本レポートでは、2021年度から2025年度にかけての週あたりの学習時間の変化を取り上げ、その背景にある要因を考察する。\n",
+              "This report looks at how weekly study time changed from FY2021 to FY2025 and considers the reasons behind it.\n"), body)
+        add(t("2. 結果\n", "2. Results\n"), section)
+        add(t("図3に示すように、学習時間は5年間で約1.7倍に増加した。特に2023年度の伸びが大きく、オンライン教材の利用が広がった時期と重なっている。\n",
+              "As Figure 3 shows, study time grew about 1.7× over five years. The jump in FY2023 was especially large, matching the period when online materials became widespread.\n"), body)
+        add(t("3. 考察\n", "3. Discussion\n"), section)
+        add(t("増加の要因として、", "One reason for the increase is"), body)
         text.textStorage?.setAttributedString(content)
         scroll.documentView = text
         return scroll
@@ -332,9 +342,10 @@ private final class SlideView: NSView {
         let gray = NSColor(white: 0.45, alpha: 1)
         let accent = NSColor(srgbRed: 0.33, green: 0.36, blue: 0.9, alpha: 1)
 
-        text("週あたりの学習時間の推移", size: 24, weight: .bold, color: ink, at: NSPoint(x: 36, y: bounds.height - 58))
-        text("2021〜2025年度のアンケート調査（デモ用の架空のデータ）", size: 12, weight: .regular, color: gray,
-             at: NSPoint(x: 37, y: bounds.height - 82))
+        text(t("週あたりの学習時間の推移", "Weekly Study Hours"), size: 24, weight: .bold, color: ink,
+             at: NSPoint(x: 36, y: bounds.height - 58))
+        text(t("2021〜2025年度のアンケート調査（デモ用の架空のデータ）", "Survey, FY2021–2025 (fictional data for this demo)"),
+             size: 12, weight: .regular, color: gray, at: NSPoint(x: 37, y: bounds.height - 82))
 
         // 棒グラフ
         let chart = NSRect(x: 36, y: 56, width: bounds.width * 0.56, height: bounds.height - 170)
@@ -358,12 +369,15 @@ private final class SlideView: NSView {
                  at: NSPoint(x: bar.midX - 10, y: bar.maxY + 4))
             text(label, size: 11, weight: .regular, color: gray, at: NSPoint(x: bar.midX - 14, y: chart.minY + 6))
         }
-        text("図3　週あたりの学習時間（時間）", size: 11, weight: .medium, color: gray, at: NSPoint(x: chart.minX, y: 26))
+        text(t("図3　週あたりの学習時間（時間）", "Figure 3  Study hours per week"), size: 11, weight: .medium, color: gray,
+             at: NSPoint(x: chart.minX, y: 26))
 
         // 要点
         let left = bounds.width * 0.66
-        text("ポイント", size: 16, weight: .bold, color: ink, at: NSPoint(x: left, y: bounds.height - 140))
-        let points = ["5年間で約1.7倍に増加", "2023年度に大きく伸びた", "オンライン教材の利用が増加", "平日の夜に学ぶ人が多い"]
+        text(t("ポイント", "Key points"), size: 16, weight: .bold, color: ink, at: NSPoint(x: left, y: bounds.height - 140))
+        let points = Localization.usesJapanese
+            ? ["5年間で約1.7倍に増加", "2023年度に大きく伸びた", "オンライン教材の利用が増加", "平日の夜に学ぶ人が多い"]
+            : ["Up about 1.7× in 5 years", "Big jump in FY2023", "More online materials", "Most study on weeknights"]
         for (index, point) in points.enumerated() {
             let y = bounds.height - 176 - CGFloat(index) * 34
             accent.setFill()

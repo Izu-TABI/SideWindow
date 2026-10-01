@@ -102,7 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SCCont
     func contentSharingPickerStartDidFailWithError(_ error: Error) {
         DispatchQueue.main.async {
             let alert = NSAlert()
-            alert.messageText = "ウィンドウの選択を開始できませんでした"
+            alert.messageText = L("ウィンドウの選択を開始できませんでした")
             alert.informativeText = error.localizedDescription
             NSApp.activate()
             alert.runModal()
@@ -138,42 +138,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SCCont
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
-        menu.addItem(item("ウィンドウを固定…", #selector(chooseWindow), key: "p"))
+        menu.addItem(item(L("ウィンドウを固定…"), #selector(chooseWindow), key: "p"))
         menu.addItem(.separator())
 
         if pins.isEmpty {
-            let empty = NSMenuItem(title: "固定中のウィンドウはありません", action: nil, keyEquivalent: "")
+            let empty = NSMenuItem(title: L("固定中のウィンドウはありません"), action: nil, keyEquivalent: "")
             empty.isEnabled = false
             menu.addItem(empty)
         } else {
-            menu.addItem(.sectionHeader(title: "固定中"))
+            menu.addItem(.sectionHeader(title: L("固定中")))
             for pin in pins {
                 // 項目にマウスを合わせると、そのパネルの枠が光る（menu(_:willHighlight:)）
                 let row = NSMenuItem(title: truncated(pin.title), action: nil, keyEquivalent: "")
                 row.image = pin.appIcon.map(menuIcon)
                 row.representedObject = pin
                 row.submenu = pin.makeMenu()
-                if pin.isClickThrough { row.subtitle = "クリック透過中" }
+                if pin.isClickThrough { row.subtitle = L("クリック透過中") }
                 menu.addItem(row)
             }
             menu.addItem(.separator())
-            menu.addItem(item(pinsHidden ? "すべて表示" : "すべて隠す", #selector(toggleHidden), key: "h"))
-            menu.addItem(item("すべての固定を解除", #selector(unpinAll)))
+            menu.addItem(item(pinsHidden ? L("すべて表示") : L("すべて隠す"), #selector(toggleHidden), key: "h"))
+            menu.addItem(item(L("すべての固定を解除"), #selector(unpinAll)))
         }
 
         menu.addItem(.separator())
-        let login = item("ログイン時に起動", #selector(toggleLoginItem))
+        let login = item(L("ログイン時に起動"), #selector(toggleLoginItem))
         login.state = LoginItem.isEnabled ? .on : .off
         menu.addItem(login)
         if !AXIsProcessTrusted() {
-            let access = item("アクセシビリティを許可…", #selector(requestAccessibility))
-            access.subtitle = "最小化したウィンドウを確実に元に戻せます"
+            let access = item(L("アクセシビリティを許可…"), #selector(requestAccessibility))
+            access.subtitle = L("最小化したウィンドウを確実に元に戻せます")
             menu.addItem(access)
         }
-        menu.addItem(item("使い方", #selector(showWelcome)))
-        menu.addItem(item("SideWindow について", #selector(showAbout)))
+        menu.addItem(item(L("使い方"), #selector(showWelcome)))
+        menu.addItem(item(L("SideWindow について"), #selector(showAbout)))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "SideWindow を終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: L("SideWindow を終了"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
 
     func menu(_ menu: NSMenu, willHighlight item: NSMenuItem?) {
@@ -213,7 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, SCCont
 
     @objc private func showAbout() {
         NSApp.activate()
-        let credits = NSAttributedString(string: "参照したいウィンドウを、いつも手前に。", attributes: [
+        let credits = NSAttributedString(string: L("参照したいウィンドウを、いつも手前に。"), attributes: [
             .font: NSFont.systemFont(ofSize: 11),
             .foregroundColor: NSColor.secondaryLabelColor,
         ])

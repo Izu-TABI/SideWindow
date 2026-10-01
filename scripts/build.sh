@@ -51,6 +51,8 @@ fi
 echo "▸ $APP を組み立て"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# 日本語・英語の両方に対応していることを macOS に伝える（標準のボタンや「このアプリについて」も英語になる）
+cp -R Resources/*.lproj "$APP/Contents/Resources/"
 
 echo "▸ 署名 (ad-hoc)"
 codesign --force --sign - "$APP"
